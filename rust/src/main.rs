@@ -91,7 +91,7 @@ fn main() {
     let fp = "/home/lee/Projects/1brc-data/1brc/measurements.txt";
     let file = File::open(fp).unwrap();
     let mmap = unsafe { Mmap::map(&file).unwrap() };
-    let content = std::str::from_utf8(&mmap).expect("Not valid UTF-8");
+    let content = std::str::from_utf8(&mmap).unwrap();
     let lines: Vec<&str> = content.lines().collect();
 
     let mut count = 0;
@@ -103,9 +103,9 @@ fn main() {
             println!("On line {}", count);
         }
 
-        if count > 10_000_000 {
-            break
-        }
+        // if count > 10_000_000 {
+        //     break
+        // }
     }
     println!("DONEZO");
     for (key, value) in &cities {
