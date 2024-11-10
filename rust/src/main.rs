@@ -5,6 +5,7 @@ use std::io::prelude::*;
 use std::io::BufReader;
 use std::fs::File;
 use std::time::Instant;
+use memmap2::Mmap;
 
 struct Collector {
     min: i32,
@@ -58,7 +59,7 @@ impl Display for Collector {
     }
 }
 
-fn process_line(ln: String, cities: &mut HashMap<String, Collector>) {
+fn process_line(ln: &str, cities: &mut HashMap<String, Collector>) {
     let vals: Vec<String> = ln.split(';')
         .map(|s| String::from(s)).collect();
     let (city, reading) = (&vals[0], &vals[1]);
@@ -87,17 +88,16 @@ fn main() {
 
     let mut cities: HashMap<String, Collector> = HashMap::new();
 
-    let fp = String::from("/home/lee/Projects/1brc-data/1brc/measurements.txt");
-    let f = File::open(fp).unwrap();
-    let mut reader = BufReader::with_capacity(64 * 1024, f);
+    let fp = "/home/lee/Projects/1brc-data/1brc/measurements.txt";
+    let file = File::open(fp).unwrap();
+    let mmap = unsafe { Mmap::map(&file).unwrap() };
+    let content = std::str::from_utf8(&mmap).expect("Not valid UTF-8");
+    let lines: Vec<&str> = content.lines().collect();
 
     let mut count = 0;
-    for line in reader.lines() {
+    for line in lines {
         count += 1;
-        match line {
-            Ok(content) => process_line(content, &mut cities),
-            Err(e) => eprintln!("Error reading line: {}", e),
-        }
+        process_line(line, &mut cities);
 
         if count % 1000000 == 0 {
             println!("On line {}", count);
