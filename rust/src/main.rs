@@ -10,33 +10,33 @@ use memmap2::Mmap;
 
 #[derive(Clone)]
 struct Collector {
-    min: i32,
-    max: i32,
+    min: f32,
+    max: f32,
     count: i32,
-    sum: i32
+    sum: f32
 }
 
 impl Collector {
-    pub fn new(starting_val: i32) -> Collector {
+    pub fn new(starting_val: f32) -> Collector {
         Collector {min: starting_val, max: starting_val, count: 1, sum: starting_val}
     }
 
     pub fn add(&self, other: Collector) -> Collector {
         Collector {
-            min: std::cmp::min(self.min, other.min),
-            max: std::cmp::max(self.max, other.max),
+            min: f32::min(self.min, other.min),
+            max: f32::max(self.max, other.max),
             count: self.count + other.count,
             sum: self.sum + other.sum
         }
     }
 
-    pub fn set_min(&mut self, new_val: i32) {
+    pub fn set_min(&mut self, new_val: f32) {
         if new_val < self.min {
             self.min = new_val;
         }
     }
 
-    pub fn set_max(&mut self, new_val: i32) {
+    pub fn set_max(&mut self, new_val: f32) {
         if new_val > self.max {
             self.max = new_val;
         }
@@ -46,11 +46,11 @@ impl Collector {
         self.count += 1
     }
 
-    pub fn update_sum(&mut self, new_val: i32) {
+    pub fn update_sum(&mut self, new_val: f32) {
         self.sum += new_val;
     }
 
-    pub fn update_for_val(&mut self, new_val: i32) {
+    pub fn update_for_val(&mut self, new_val: f32) {
         self.set_min(new_val);
         self.set_max(new_val);
         self.update_sum(new_val);
@@ -62,9 +62,9 @@ impl Display for Collector {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(
             f, "{:.1}/{:.1}/{:.1}",
-            (self.min as f64 * 10.0).round() / 100.0,
-            ((self.sum as f64 / self.count as f64) * 10.0).round() / 100.0,
-            (self.max as f64 * 10.0).round() / 100.0
+            self.min,
+            ((self.sum / self.count as f32) * 10.0).round() / 10.0,
+            self.max
         )
     }
 }
@@ -75,22 +75,17 @@ fn process_line(ln: &str, cities: &mut HashMap<String, Collector>) {
 
     let (city, reading) = (&vals[0], &vals[1]);
 
-    // Convert float string to integer for faster arithmetic
-    // E.g. 42.1 becomes 421
-    // TODO check this is actually helpful
     let temp = reading.parse::<f32>().expect("Error parsing temperature");
-    let temp_normalised = (temp * 10.0) as i32;
-
     match cities.contains_key(city.as_str()) {
         false => {
             cities.insert(
                 city.to_string(),
-                Collector::new(temp_normalised)
+                Collector::new(temp)
             );
         }
         true => {
             cities.get_mut(city.as_str()).unwrap()
-                .update_for_val(temp_normalised);
+                .update_for_val(temp);
         }
     };
 }
@@ -189,6 +184,7 @@ fn main() {
     }
 
     let duration = start_time.elapsed();
+
 
 
     let expected = read_expected_as_hashmap();
