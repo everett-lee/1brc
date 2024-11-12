@@ -1,73 +1,14 @@
 mod helpers;
+mod collector;
 
 use std::collections::HashMap;
-use std::{fmt, fs, thread};
-use std::fmt::{Display, Formatter};
+use std::{thread};
+use std::fmt::{Display};
 use std::io::prelude::*;
 use std::fs::File;
 use std::time::Instant;
 use memmap2::Mmap;
-
-#[derive(Clone)]
-struct Collector {
-    min: f32,
-    max: f32,
-    count: i32,
-    sum: f32
-}
-
-impl Collector {
-    pub fn new(starting_val: f32) -> Collector {
-        Collector {min: starting_val, max: starting_val, count: 1, sum: starting_val}
-    }
-
-    pub fn add(&self, other: Collector) -> Collector {
-        Collector {
-            min: f32::min(self.min, other.min),
-            max: f32::max(self.max, other.max),
-            count: self.count + other.count,
-            sum: self.sum + other.sum
-        }
-    }
-
-    pub fn set_min(&mut self, new_val: f32) {
-        if new_val < self.min {
-            self.min = new_val;
-        }
-    }
-
-    pub fn set_max(&mut self, new_val: f32) {
-        if new_val > self.max {
-            self.max = new_val;
-        }
-    }
-
-    pub fn update_count(&mut self) {
-        self.count += 1
-    }
-
-    pub fn update_sum(&mut self, new_val: f32) {
-        self.sum += new_val;
-    }
-
-    pub fn update_for_val(&mut self, new_val: f32) {
-        self.set_min(new_val);
-        self.set_max(new_val);
-        self.update_sum(new_val);
-        self.update_count();
-    }
-}
-
-impl Display for Collector {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(
-            f, "{:.1}/{:.1}/{:.1}",
-            self.min,
-            ((self.sum / self.count as f32) * 10.0).round() / 10.0,
-            self.max
-        )
-    }
-}
+use crate::collector::Collector;
 
 fn process_line(ln: &str, cities: &mut HashMap<String, Collector>) {
     let vals: Vec<String> = ln.split(';')
@@ -115,21 +56,6 @@ fn get_next_n_chars(mmap: &Mmap, start: usize, n_chars: usize) -> (usize, usize)
     (start, end)
 }
 
-fn read_expected_as_hashmap() -> HashMap<String, String> {
-    let content = fs::read_to_string("averages.txt").unwrap();
-
-    let trimmed = content.trim().trim_start_matches('{').trim_end_matches('}');
-    let pairs: Vec<&str> = trimmed.split(',').collect();
-
-    let mut city_to_stats = HashMap::new();
-    for pair in pairs {
-        let mut kv = pair.splitn(2, '=');
-        if let (Some(key), Some(value)) = (kv.next(), kv.next()) {
-            city_to_stats.insert(key.trim().to_string(), value.trim().to_string());
-        }
-    }
-    city_to_stats
-}
 
 fn main() {
     let start_time = Instant::now();
@@ -140,15 +66,8 @@ fn main() {
     let n_chars = 500_000_000;
     let mut handles = vec![];
     let (mut start_char_index, mut end_char_index) = get_next_n_chars(&mmap, 0, n_chars);
-
-    let mut count = 0;
-    while end_char_index < mmap.len() {
+    while end_char_index <= mmap.len() {
         let data_chunk = String::from_utf8_lossy(&mmap[start_char_index..end_char_index]).to_string();
-
-        // count += 1;
-        // if count > 5 {
-        //     break
-        // }
 
         let handle = thread::spawn(move || {
             println!("Reading chars between {} and {}", start_char_index, end_char_index);
@@ -166,6 +85,10 @@ fn main() {
         });
         handles.push(handle);
 
+        // Reached last char of file
+        if end_char_index == mmap.len() {
+            break
+        }
         (start_char_index, end_char_index) = get_next_n_chars(&mmap, end_char_index, n_chars);
     }
 
@@ -185,12 +108,10 @@ fn main() {
 
     let duration = start_time.elapsed();
 
-
-
-    let expected = read_expected_as_hashmap();
+    let expected = helpers::read_expected_as_hashmap();
     final_cities.iter().for_each(|(city, col)| {
         println!("Comparing for city {}", &city);
-       let matching = expected.get(city).expect(&format!("Map should contain city {city}"));
+        let matching = expected.get(city).expect(&format!("Map should contain city {city}"));
         assert_eq!(matching, &col.to_string())
     });
 
