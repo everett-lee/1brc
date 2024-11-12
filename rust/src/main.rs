@@ -1,6 +1,7 @@
+mod helpers;
+
 use std::collections::HashMap;
-use std::{fmt, thread};
-use std::cmp::{max, min};
+use std::{fmt, fs, thread};
 use std::fmt::{Display, Formatter};
 use std::io::prelude::*;
 use std::fs::File;
@@ -22,8 +23,8 @@ impl Collector {
 
     pub fn add(&self, other: Collector) -> Collector {
         Collector {
-            min: min(self.min, other.min),
-            max: max(self.max, other.max),
+            min: std::cmp::min(self.min, other.min),
+            max: std::cmp::max(self.max, other.max),
             count: self.count + other.count,
             sum: self.sum + other.sum
         }
@@ -60,10 +61,10 @@ impl Collector {
 impl Display for Collector {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(
-            f, "{} {} {}",
-            (self.sum as f64 / 10.0) / self.count as f64,
-            self.min as f64 / 10.0,
-            self.max as f64 / 10.0
+            f, "{:.1}/{:.1}/{:.1}",
+            (self.min as f64 * 10.0).round() / 100.0,
+            ((self.sum as f64 / self.count as f64) * 10.0).round() / 100.0,
+            (self.max as f64 * 10.0).round() / 100.0
         )
     }
 }
@@ -117,6 +118,22 @@ fn get_next_n_chars(mmap: &Mmap, start: usize, n_chars: usize) -> (usize, usize)
         current = mmap.get(end).unwrap()
     }
     (start, end)
+}
+
+fn read_expected_as_hashmap() -> HashMap<String, String> {
+    let content = fs::read_to_string("averages.txt").unwrap();
+
+    let trimmed = content.trim().trim_start_matches('{').trim_end_matches('}');
+    let pairs: Vec<&str> = trimmed.split(',').collect();
+
+    let mut city_to_stats = HashMap::new();
+    for pair in pairs {
+        let mut kv = pair.splitn(2, '=');
+        if let (Some(key), Some(value)) = (kv.next(), kv.next()) {
+            city_to_stats.insert(key.trim().to_string(), value.trim().to_string());
+        }
+    }
+    city_to_stats
 }
 
 fn main() {
@@ -173,8 +190,12 @@ fn main() {
 
     let duration = start_time.elapsed();
 
-    final_cities.iter().for_each(|(city, collector)| {
-        println!("{} {}", city, collector);
+
+    let expected = read_expected_as_hashmap();
+    final_cities.iter().for_each(|(city, col)| {
+        println!("Comparing for city {}", &city);
+       let matching = expected.get(city).expect(&format!("Map should contain city {city}"));
+        assert_eq!(matching, &col.to_string())
     });
 
     println!("Elapsed time: {} ms", duration.as_millis());

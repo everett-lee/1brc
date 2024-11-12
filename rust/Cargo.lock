@@ -429,6 +429,7 @@ dependencies = [
  "criterion",
  "memmap2",
  "rand",
+ "serde_json",
 ]
 
 [[package]]
