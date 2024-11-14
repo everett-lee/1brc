@@ -13,7 +13,6 @@ use crate::collector::Collector;
 fn process_line(ln: &str, cities: &mut HashMap<String, Collector>) {
     let vals: Vec<String> = ln.split(';')
         .map(|s| String::from(s)).collect();
-
     let (city, reading) = (&vals[0], &vals[1]);
 
     let temp = reading.parse::<f32>().expect("Error parsing temperature");
@@ -38,16 +37,17 @@ fn get_next_n_chars(mmap: &Mmap, start: usize, n_chars: usize) -> (usize, usize)
     }
 
     let char_at_end = mmap.get(end);
-    // Take from start .. end of memory
+    // Past range of mapped file, take from start .. end of memory
     if char_at_end.is_none() {
         return (start, mmap.len());
     }
+    // Reached end of line
     if *char_at_end.unwrap() == b'\n' {
         return (start, end)
     }
 
     let mut current = char_at_end.unwrap();
-    // If not at newline keep iterating until we fine one
+    // If not at end of line keep iterating until we are
     while *current != b'\n' {
         end += 1;
         // Can unwrap as has to end with newline
@@ -59,11 +59,11 @@ fn get_next_n_chars(mmap: &Mmap, start: usize, n_chars: usize) -> (usize, usize)
 
 fn main() {
     let start_time = Instant::now();
-    let fp = "/home/lee/Projects/1brc-data/1brc/measurements.txt";
+    let fp = "../measurements.txt";
     let file = File::open(fp).unwrap();
     let mmap = unsafe { Mmap::map(&file).unwrap() };
 
-    let n_chars = 500_000_000;
+    let n_chars = 250_000_000;
     let mut handles = vec![];
     let (mut start_char_index, mut end_char_index) = get_next_n_chars(&mmap, 0, n_chars);
     while end_char_index <= mmap.len() {
@@ -95,13 +95,16 @@ fn main() {
 
     let mut final_cities: HashMap<String, Collector> = HashMap::new();
     for handle in handles {
-        let cities = handle.join().unwrap();
-        cities.iter().for_each(|(city, collector)| {
-            if final_cities.contains_key(city) {
-                let existing = final_cities.get(city).unwrap();
-                final_cities.insert(String::from(city), existing.add(collector.clone()));
-            } else {
-                final_cities.insert(String::from(city), collector.clone());
+        let thread_cities = handle.join().unwrap();
+        thread_cities.iter().for_each(|(city, collector)| {
+            match  final_cities.contains_key(city) {
+                true => {
+                    let existing = final_cities.get(city).unwrap();
+                    final_cities.insert(String::from(city), existing.add(collector.clone()));
+                }
+                false => {
+                    final_cities.insert(String::from(city), collector.clone());
+                }
             }
         })
     }
@@ -114,17 +117,9 @@ fn main() {
         let matching = expected.get(city).expect(&format!("Map should contain city {city}"));
         assert_eq!(matching, &col.to_string())
     });
-
     println!("Elapsed time: {} ms", duration.as_millis());
 }
 
 // TODO
-// threading
-// create collector struct in thread
-// combine collectors at end
-
-// mmap
-// better buffered reading?
-
 // save as json
 

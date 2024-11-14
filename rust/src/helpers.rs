@@ -3,7 +3,7 @@ use std::fs;
 use crate::Collector;
 
 pub fn read_expected_as_hashmap() -> HashMap<String, String> {
-    let content = fs::read_to_string("averages.txt").unwrap();
+    let content = fs::read_to_string("../averages.txt").unwrap();
 
     let trimmed = content.trim().trim_start_matches('{').trim_end_matches('}');
     let pairs: Vec<&str> = trimmed.split(',').collect();

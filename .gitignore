@@ -1,3 +1,5 @@
 .idea
 **/target
 times.txt
+measurements.txt
+clickhouse
