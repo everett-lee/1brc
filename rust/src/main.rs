@@ -10,6 +10,9 @@ use std::time::Instant;
 use memmap2::Mmap;
 use crate::collector::Collector;
 
+/// Split a line on the ';' separator and parse each side, yielding
+/// city_name, reading
+/// Use these update the Collector for this city
 fn process_line(ln: &str, cities: &mut HashMap<String, Collector>) {
     let vals: Vec<String> = ln.split(';')
         .map(|s| String::from(s)).collect();
@@ -30,6 +33,14 @@ fn process_line(ln: &str, cities: &mut HashMap<String, Collector>) {
     };
 }
 
+/// Skip forward in mapped measurements.txt file n_chars at a time from start
+/// If the end char is not a newline, continue checking next character until it is
+/// After this process (start, end) will reference a section of the file containing
+/// contiguous lines e.g.
+/// Beijing;14.7
+/// Yangon;23.7
+/// Amsterdam;9.1
+/// Nakhon Ratchasima;12.0
 fn get_next_n_chars(mmap: &Mmap, start: usize, n_chars: usize) -> (usize, usize) {
     let mut end = start + n_chars;
     if end >= mmap.len() {

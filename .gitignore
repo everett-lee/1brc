@@ -2,4 +2,5 @@
 **/target
 times.txt
 measurements.txt
-clickhouse
+clickhouse/clickhouse
+clickhouse/temp
