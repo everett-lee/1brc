@@ -6,6 +6,7 @@ use std::{thread};
 use std::fmt::{Display};
 use std::io::prelude::*;
 use std::fs::File;
+use std::sync::Arc;
 use std::time::Instant;
 use memmap2::Mmap;
 use crate::collector::Collector;
@@ -13,9 +14,11 @@ use crate::collector::Collector;
 /// Split a line on the ';' separator and parse each side, yielding
 /// city_name, reading
 /// Use these update the Collector for this city
-fn process_line(ln: &str, cities: &mut HashMap<String, Collector>) {
-    let vals: Vec<String> = ln.split(';')
-        .map(|s| String::from(s)).collect();
+fn process_line(ln: &[u8], cities: &mut HashMap<String, Collector>) {
+    let vals: Vec<String> = ln.split(|&byte| byte == b';')
+        .map(|s| String::from(std::str::from_utf8(s).expect("Invalid UTF-8")))
+        .collect();
+
     let (city, reading) = (&vals[0], &vals[1]);
 
     let temp = reading.parse::<f32>().expect("Error parsing temperature");
@@ -73,18 +76,23 @@ fn main() {
     let fp = "../measurements.txt";
     let file = File::open(fp).unwrap();
     let mmap = unsafe { Mmap::map(&file).unwrap() };
+    let mmap_arc = Arc::new(mmap);
 
     let n_chars = 250_000_000;
     let mut handles = vec![];
-    let (mut start_char_index, mut end_char_index) = get_next_n_chars(&mmap, 0, n_chars);
-    while end_char_index <= mmap.len() {
-        let data_chunk = String::from_utf8_lossy(&mmap[start_char_index..end_char_index]).to_string();
+
+    let mmap_outer = Arc::clone(&mmap_arc);
+    let (mut start_char_index, mut end_char_index) = get_next_n_chars(&mmap_outer, 0, n_chars);
+    while end_char_index <= mmap_outer.len() {
+        let mmap_inner = Arc::clone(&mmap_arc);
 
         let handle = thread::spawn(move || {
-            println!("Reading chars between {} and {}", start_char_index, end_char_index);
-            let mut cities: HashMap<String, Collector> = HashMap::new();
+            let data_chunk = &mmap_inner[start_char_index..end_char_index];
 
-            data_chunk.split("\n").for_each(
+            println!("Reading chars between {} and {}", start_char_index, end_char_index);
+            let mut cities: HashMap<String, Collector> = HashMap::with_capacity(120);
+
+            data_chunk.split(|&byte| byte == b'\n').for_each(
                 |l| {
                     if l.len() > 1 {
                         process_line(l, &mut cities);
@@ -97,18 +105,17 @@ fn main() {
         handles.push(handle);
 
         // Reached last char of file
-        if end_char_index == mmap.len() {
+        if end_char_index == mmap_outer.len() {
             break
         }
-        (start_char_index, end_char_index) = get_next_n_chars(&mmap, end_char_index, n_chars);
+        (start_char_index, end_char_index) = get_next_n_chars(&mmap_outer, end_char_index, n_chars);
     }
 
-
-    let mut final_cities: HashMap<String, Collector> = HashMap::new();
+    let mut final_cities: HashMap<String, Collector> = HashMap::with_capacity(120);
     for handle in handles {
         let thread_cities = handle.join().unwrap();
         thread_cities.iter().for_each(|(city, collector)| {
-            match  final_cities.contains_key(city) {
+            match final_cities.contains_key(city) {
                 true => {
                     let existing = final_cities.get(city).unwrap();
                     final_cities.insert(String::from(city), existing.add(collector.clone()));
