@@ -6,8 +6,10 @@ use std::{thread};
 use std::fmt::{Display};
 use std::io::prelude::*;
 use std::fs::File;
+use std::ops::Index;
 use std::sync::Arc;
 use std::time::Instant;
+use fast_float::parse;
 use memmap2::Mmap;
 use crate::collector::Collector;
 
@@ -15,22 +17,20 @@ use crate::collector::Collector;
 /// city_name, reading
 /// Use these update the Collector for this city
 fn process_line(ln: &[u8], cities: &mut HashMap<String, Collector>) {
-    let vals: Vec<String> = ln.split(|&byte| byte == b';')
-        .map(|s| String::from(std::str::from_utf8(s).expect("Invalid UTF-8")))
-        .collect();
+    let sep_index = ln.iter().position(|&byte| byte == b';').unwrap();
+    let (city, reading) = (&ln[0..sep_index], &ln[sep_index + 1..]);
+    let city_as_str = std::str::from_utf8(city).expect("Invalid UTF-8").to_string();
 
-    let (city, reading) = (&vals[0], &vals[1]);
-
-    let temp = reading.parse::<f32>().expect("Error parsing temperature");
-    match cities.contains_key(city.as_str()) {
+    let temp = parse(reading).expect("Error parsing temperature");
+    match cities.contains_key(&city_as_str) {
         false => {
             cities.insert(
-                city.to_string(),
+                city_as_str,
                 Collector::new(temp)
             );
         }
         true => {
-            cities.get_mut(city.as_str()).unwrap()
+            cities.get_mut(&city_as_str).unwrap()
                 .update_for_val(temp);
         }
     };
