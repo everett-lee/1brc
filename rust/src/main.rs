@@ -78,7 +78,8 @@ fn main() {
     let mmap = unsafe { Mmap::map(&file).unwrap() };
     let mmap_arc = Arc::new(mmap);
 
-    let n_chars = 4096 * 200_000;
+    // let n_chars = 4096 * 200_000;
+    let n_chars = mmap_arc.clone().len() / 8;
     let mut handles = vec![];
 
     let mmap_outer = Arc::clone(&mmap_arc);

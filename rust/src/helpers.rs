@@ -3,9 +3,9 @@ use std::fs;
 use crate::Collector;
 
 pub fn convert_to_fixed_array(slice: &[u8]) -> [u8; 20] {
-    let mut array = [0u8; 20]; // Initialize a fixed-size array with default value 0
-    let length = slice.len().min(20); // Ensure we only copy up to 15 bytes
-    array[..length].copy_from_slice(&slice[..length]); // Copy slice into the array
+    let mut array = [0u8; 20];
+    let length = slice.len().min(20);
+    array[..length].copy_from_slice(&slice[..length]);
     array
 }
 
