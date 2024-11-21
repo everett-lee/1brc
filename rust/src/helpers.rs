@@ -2,7 +2,14 @@ use std::collections::HashMap;
 use std::fs;
 use crate::Collector;
 
-pub fn read_expected_as_hashmap() -> HashMap<String, String> {
+pub fn convert_to_fixed_array(slice: &[u8]) -> [u8; 20] {
+    let mut array = [0u8; 20]; // Initialize a fixed-size array with default value 0
+    let length = slice.len().min(20); // Ensure we only copy up to 15 bytes
+    array[..length].copy_from_slice(&slice[..length]); // Copy slice into the array
+    array
+}
+
+pub fn read_expected_as_hashmap() -> HashMap<[u8; 20], String> {
     let content = fs::read_to_string("../averages.txt").unwrap();
 
     let trimmed = content.trim().trim_start_matches('{').trim_end_matches('}');
@@ -19,7 +26,9 @@ pub fn read_expected_as_hashmap() -> HashMap<String, String> {
             if key.contains("Petén") {
                 inserted_key = "Flores,  Petén"
             }
-            city_to_stats.insert(inserted_key.trim().to_string(), value.trim().to_string());
+            let city_as_vec: [u8; 20] = convert_to_fixed_array(inserted_key.trim().as_bytes());
+            // inserted_key.trim().to_string()
+            city_to_stats.insert(city_as_vec, value.trim().to_string());
         }
     }
     city_to_stats

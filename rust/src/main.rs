@@ -12,25 +12,26 @@ use std::time::Instant;
 use fast_float::parse;
 use memmap2::Mmap;
 use crate::collector::Collector;
+use crate::helpers::convert_to_fixed_array;
 
 /// Split a line on the ';' separator and parse each side, yielding
 /// city_name, reading
 /// Use these update the Collector for this city
-fn process_line(ln: &[u8], cities: &mut HashMap<String, Collector>) {
+fn process_line(ln: &[u8], cities: &mut HashMap<[u8; 20], Collector>) {
     let sep_index = ln.iter().position(|&byte| byte == b';').unwrap();
     let (city, reading) = (&ln[0..sep_index], &ln[sep_index + 1..]);
-    let city_as_str = std::str::from_utf8(city).expect("Invalid UTF-8").to_string();
+    let city_as_vec = convert_to_fixed_array(city);
 
     let temp = parse(reading).expect("Error parsing temperature");
-    match cities.contains_key(&city_as_str) {
+    match cities.contains_key(&city_as_vec) {
         false => {
             cities.insert(
-                city_as_str,
+                city_as_vec,
                 Collector::new(temp)
             );
         }
         true => {
-            cities.get_mut(&city_as_str).unwrap()
+            cities.get_mut(&city_as_vec).unwrap()
                 .update_for_val(temp);
         }
     };
@@ -70,7 +71,6 @@ fn get_next_n_chars(mmap: &Mmap, start: usize, n_chars: usize) -> (usize, usize)
     (start, end)
 }
 
-
 fn main() {
     let start_time = Instant::now();
     let fp = "../measurements.txt";
@@ -78,7 +78,7 @@ fn main() {
     let mmap = unsafe { Mmap::map(&file).unwrap() };
     let mmap_arc = Arc::new(mmap);
 
-    let n_chars = 250_000_000;
+    let n_chars = 4096 * 200_000;
     let mut handles = vec![];
 
     let mmap_outer = Arc::clone(&mmap_arc);
@@ -90,7 +90,7 @@ fn main() {
             let data_chunk = &mmap_inner[start_char_index..end_char_index];
 
             println!("Reading chars between {} and {}", start_char_index, end_char_index);
-            let mut cities: HashMap<String, Collector> = HashMap::with_capacity(120);
+            let mut cities: HashMap<[u8; 20], Collector> = HashMap::with_capacity(120);
 
             data_chunk.split(|&byte| byte == b'\n').for_each(
                 |l| {
@@ -111,17 +111,17 @@ fn main() {
         (start_char_index, end_char_index) = get_next_n_chars(&mmap_outer, end_char_index, n_chars);
     }
 
-    let mut final_cities: HashMap<String, Collector> = HashMap::with_capacity(120);
+    let mut final_cities: HashMap<[u8; 20], Collector> = HashMap::with_capacity(120);
     for handle in handles {
         let thread_cities = handle.join().unwrap();
         thread_cities.iter().for_each(|(city, collector)| {
             match final_cities.contains_key(city) {
                 true => {
                     let existing = final_cities.get(city).unwrap();
-                    final_cities.insert(String::from(city), existing.add(collector.clone()));
+                    final_cities.insert(city.clone(), existing.add(collector.clone()));
                 }
                 false => {
-                    final_cities.insert(String::from(city), collector.clone());
+                    final_cities.insert(city.clone(), collector.clone());
                 }
             }
         })
@@ -130,14 +130,15 @@ fn main() {
     let duration = start_time.elapsed();
 
     let expected = helpers::read_expected_as_hashmap();
+    expected.keys().for_each(|k| {
+        let city_as_str = String::from_utf8(k.to_vec()).unwrap();
+        println!("Map contains city {city_as_str} with vec {:?}", k);
+    });
     final_cities.iter().for_each(|(city, col)| {
-        println!("Comparing for city {}", &city);
-        let matching = expected.get(city).expect(&format!("Map should contain city {city}"));
+        let city_as_str = String::from_utf8(city.to_vec()).unwrap();
+        println!("Comparing for city {}", city_as_str);
+        let matching = expected.get(city).expect(&format!("Map should contain city {city_as_str} with vec {:?}", city));
         assert_eq!(matching, &col.to_string())
     });
     println!("Elapsed time: {} ms", duration.as_millis());
 }
-
-// TODO
-// save as json
-
