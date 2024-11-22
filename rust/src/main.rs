@@ -132,14 +132,10 @@ fn main() {
     let duration = start_time.elapsed();
 
     let expected = helpers::read_expected_as_hashmap();
-    expected.keys().for_each(|k| {
-        let city_as_str = String::from_utf8(k.to_vec()).unwrap();
-        println!("Map contains city {city_as_str} with vec {:?}", k);
-    });
     final_cities.iter().for_each(|(city, col)| {
         let city_as_str = String::from_utf8(city.to_vec()).unwrap();
         println!("Comparing for city {}", city_as_str);
-        let matching = expected.get(city).expect(&format!("Map should contain city {city_as_str} with vec {:?}", city));
+        let matching = expected.get(city).expect(&format!("Map should contain city {city_as_str}"));
         assert_eq!(matching, &col.to_string())
     });
     println!("Elapsed time: {} ms", duration.as_millis());
