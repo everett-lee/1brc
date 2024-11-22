@@ -12,26 +12,26 @@ use std::time::Instant;
 use fast_float::parse;
 use memmap2::Mmap;
 use crate::collector::Collector;
-use crate::helpers::convert_to_fixed_array;
+use crate::helpers::{convert_to_fixed_array, save_to_expected_output};
 
 /// Split a line on the ';' separator and parse each side, yielding
 /// city_name, reading
-/// Use these update the Collector for this city
+/// Use these to update the Collector for this city
 fn process_line(ln: &[u8], cities: &mut HashMap<[u8; 20], Collector>) {
     let sep_index = ln.iter().position(|&byte| byte == b';').unwrap();
     let (city, reading) = (&ln[0..sep_index], &ln[sep_index + 1..]);
-    let city_as_vec = convert_to_fixed_array(city);
+    let city_arr = convert_to_fixed_array(city);
 
     let temp = parse(reading).expect("Error parsing temperature");
-    match cities.contains_key(&city_as_vec) {
+    match cities.contains_key(&city_arr) {
         false => {
             cities.insert(
-                city_as_vec,
+                city_arr,
                 Collector::new(temp)
             );
         }
         true => {
-            cities.get_mut(&city_as_vec).unwrap()
+            cities.get_mut(&city_arr).unwrap()
                 .update_for_val(temp);
         }
     };
@@ -78,8 +78,8 @@ fn main() {
     let mmap = unsafe { Mmap::map(&file).unwrap() };
     let mmap_arc = Arc::new(mmap);
 
-    // let n_chars = 4096 * 200_000;
-    let n_chars = mmap_arc.clone().len() / 8;
+    let n_threads = 8;
+    let n_chars = mmap_arc.clone().len() / n_threads;
     let mut handles = vec![];
 
     let mmap_outer = Arc::clone(&mmap_arc);
@@ -128,6 +128,7 @@ fn main() {
         })
     }
 
+    save_to_expected_output(&final_cities);
     let duration = start_time.elapsed();
 
     let expected = helpers::read_expected_as_hashmap();

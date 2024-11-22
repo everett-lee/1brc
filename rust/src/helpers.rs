@@ -34,21 +34,25 @@ pub fn read_expected_as_hashmap() -> HashMap<[u8; 20], String> {
     city_to_stats
 }
 
-pub fn save_to_expected_output(final_cities: HashMap<String, Collector>) {
-    let mut sorted: Vec<(&String, &Collector)> = final_cities.iter().collect();
-    sorted.sort_by_key(|&(key, _)| key);
+pub fn save_to_expected_output(final_cities: &HashMap<[u8;20], Collector>) {
+    let mut sorted: Vec<(String, &Collector)> = final_cities.iter()
+        .map(|(k, v)| {
+            let last_zero_index = k.iter().position(|&c| c == 0);
+            let as_str = match last_zero_index {
+                None => String::from_utf8(k.to_vec()).unwrap(),
+                Some(index) =>  String::from_utf8(k[..index].to_vec()).unwrap()
+            };
+            (as_str, v)
+        })
+        .collect();
+
+    sorted.sort_by_key(|city| city.0.clone());
 
     let mut output = vec![];
     sorted.iter().for_each(|(city, col)| {
-        output.push(format!("{}={}" , city, col));
+        output.push(format!("{},{}" , city, col.comma_separated_line()));
     });
 
-    let mut builder = String::new();
-    let joined = output.join(", ");
-    builder.push('{');
-    builder.push_str(&joined);
-    builder.push('}');
-
-    // TODO actually save to file
-    println!("{}", builder);
+    let joined = output.join("\n");
+    fs::write("averages-rust.csv", joined).unwrap();
 }

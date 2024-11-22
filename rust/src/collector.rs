@@ -5,7 +5,7 @@ use std::fmt::{Display, Formatter};
 pub struct Collector {
     min: f32,
     max: f32,
-    count: i32,
+    count: u32,
     sum: f32,
 }
 
@@ -54,6 +54,17 @@ impl Collector {
         self.update_sum(new_val);
         self.update_count();
     }
+
+    pub fn average(&self) -> f32 {
+        ((self.sum / self.count as f32) * 10.0).round() / 10.0
+    }
+
+    pub fn comma_separated_line(&self) -> String {
+        format!(
+            "{:.1},{:.1},{:.1}",
+            self.min, self.average(), self.max
+        )
+    }
 }
 
 impl Display for Collector {
@@ -62,7 +73,7 @@ impl Display for Collector {
             f,
             "{:.1}/{:.1}/{:.1}",
             self.min,
-            ((self.sum / self.count as f32) * 10.0).round() / 10.0,
+            self.average(),
             self.max
         )
     }
